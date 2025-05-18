@@ -33,14 +33,14 @@ namespace OpenBasket.Classes
             0, 1, 2,
             2, 3, 1
         };
-        
+
         float[] ringTexCoords =
         {
         0f, 1f,//верхний левый
         1f, 1f,//верхний правый
         0f, 0f,//нижний левый
         1f, 0f//нижний правый
-        
+
         };
         int ringTextureVBO;
         int ringTextureID;
@@ -80,7 +80,7 @@ namespace OpenBasket.Classes
             GL.BindBuffer(BufferTarget.ArrayBuffer, ringVBO);
             //запихиваем данные в буфер берем переменные ЦЕЛЬ РАЗМЕР И ДАТА
             GL.BufferData(BufferTarget.ArrayBuffer, ringVerties.Length * sizeof(float), ringVerties, BufferUsageHint.StaticDraw);
-            //теперь после того как мы сделали VBO займеся VAO
+            //теперь после того как мы сделали VBO займеся VAО
             ringVAO = GL.GenVertexArray();
             GL.BindVertexArray(ringVAO);
             //как я понял мы тут говорим что вот так то так то по три вершины берем
@@ -96,7 +96,7 @@ namespace OpenBasket.Classes
             GL.BufferData(BufferTarget.ElementArrayBuffer, ringIndices.Length * sizeof(uint), ringIndices, BufferUsageHint.StaticDraw);
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
 
-            
+
 
             //теперь делаем текстурный буфер
             ringTextureVBO = GL.GenBuffer();
@@ -106,6 +106,6 @@ namespace OpenBasket.Classes
             GL.EnableVertexArrayAttrib(ringVAO, 1);
             RingTexture();
         }
-        
+
     }
 }

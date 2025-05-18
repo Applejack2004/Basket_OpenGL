@@ -1,5 +1,4 @@
-﻿
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Drawing;
@@ -67,7 +66,7 @@ namespace OpenBasket
             try
             {
                 using (StreamReader reader = new StreamReader(
-                    @"C:\basket_game_opengl\OpenGlBasket\OpenBasket\Shaders\" + filepath))
+    @"C:\basket_game_opengl\OpenGlBasket\OpenBasket\Shaders\" + filepath))
                 {
                     shaderSource = reader.ReadToEnd();
                 }
@@ -106,10 +105,11 @@ namespace OpenBasket
 
 
         Shaders shaderProgram = new Shaders();
-        Camera camera;
+        Camera? camera = null;
         Ring ring = new Ring();
         Floor floor = new Floor();
         Ball ball = new Ball();
+        Borders borders = new Borders();
         Vector3 ballPosition = new Vector3(0f, 0.5f, -3f); // Исходная позиция мяча перед камерой
         public Game(int width, int height) : base(GameWindowSettings.Default, NativeWindowSettings.Default)
         {
@@ -119,13 +119,103 @@ namespace OpenBasket
             throwForce = 15f; // Сила броска как в оригинале
         }
 
+        int[] bgVAO = new int[4], bgVBO = new int[4], bgEBO = new int[4];
+        int backgroundTextureID;
+        void LoadBackground()
+        {
+            // Координаты для 4 сторон (большой размер)
+            float sizeX = 12f, sizeY = 8f, zFar = -9.9f, zNear = 9.9f, yBot = -2f, yTop = 6f, xLeft = -7f, xRight = 7f;
+            float[][] bgVertices = new float[4][];
+            // Задняя (за кольцом z = zFar)
+            bgVertices[0] = new float[] {
+                xLeft, yTop, zFar, 0, 1,
+                xRight, yTop, zFar, 1, 1,
+                xLeft, yBot, zFar, 0, 0,
+                xRight, yBot, zFar, 1, 0
+            };
+            // Передняя (z = zNear)
+            bgVertices[1] = new float[] {
+                xLeft, yTop, zNear, 0, 1,
+                xRight, yTop, zNear, 1, 1,
+                xLeft, yBot, zNear, 0, 0,
+                xRight, yBot, zNear, 1, 0
+            };
+            // Левая (x = xLeft)
+            bgVertices[2] = new float[] {
+                xLeft, yTop, zNear, 0, 1,
+                xLeft, yTop, zFar, 1, 1,
+                xLeft, yBot, zNear, 0, 0,
+                xLeft, yBot, zFar, 1, 0
+            };
+            // Правая (x = xRight)
+            bgVertices[3] = new float[] {
+                xRight, yTop, zNear, 0, 1,
+                xRight, yTop, zFar, 1, 1,
+                xRight, yBot, zNear, 0, 0,
+                xRight, yBot, zFar, 1, 0
+            };
+            uint[] indices = { 0, 1, 2, 2, 3, 1 };
+            for (int i = 0; i < 4; i++)
+            {
+                bgVAO[i] = GL.GenVertexArray();
+                bgVBO[i] = GL.GenBuffer();
+                bgEBO[i] = GL.GenBuffer();
+                GL.BindVertexArray(bgVAO[i]);
+                GL.BindBuffer(BufferTarget.ArrayBuffer, bgVBO[i]);
+                GL.BufferData(BufferTarget.ArrayBuffer, bgVertices[i].Length * sizeof(float), bgVertices[i], BufferUsageHint.StaticDraw);
+                GL.BindBuffer(BufferTarget.ElementArrayBuffer, bgEBO[i]);
+                GL.BufferData(BufferTarget.ElementArrayBuffer, indices.Length * sizeof(uint), indices, BufferUsageHint.StaticDraw);
+                GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 5 * sizeof(float), 0);
+                GL.EnableVertexAttribArray(0);
+                GL.VertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, 5 * sizeof(float), 3 * sizeof(float));
+                GL.EnableVertexAttribArray(1);
+                GL.BindVertexArray(0);
+            }
+            // Одна текстура для всех сторон
+            backgroundTextureID = GL.GenTexture();
+            GL.ActiveTexture(TextureUnit.Texture0);
+            GL.BindTexture(TextureTarget.Texture2D, backgroundTextureID);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+            StbImageSharp.StbImage.stbi_set_flip_vertically_on_load(1);
+            var img = StbImageSharp.ImageResult.FromStream(System.IO.File.OpenRead("c://opengl//Basket_OpenGL//Texture//fans.jpg"), StbImageSharp.ColorComponents.RedGreenBlueAlpha);
+            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, img.Width, img.Height, 0, PixelFormat.Rgba, PixelType.UnsignedByte, img.Data);
+            GL.BindTexture(TextureTarget.Texture2D, 0);
+        }
+        void DrawBackground()
+        {
+            int modelLoc = GL.GetUniformLocation(shaderProgram.shaderHandle, "model");
+            int viewLoc = GL.GetUniformLocation(shaderProgram.shaderHandle, "view");
+            int projLoc = GL.GetUniformLocation(shaderProgram.shaderHandle, "projection");
+            int colorLoc = GL.GetUniformLocation(shaderProgram.shaderHandle, "overrideColor");
+            if (colorLoc != -1) GL.Uniform4(colorLoc, new Vector4(-1.0f));
+            Matrix4 model = Matrix4.Identity;
+            Matrix4 view = camera != null ? camera.GetViewMatrix() : Matrix4.Identity;
+            Matrix4 projection = camera != null ? camera.GetProjection() : Matrix4.Identity;
+            for (int i = 0; i < 4; i++)
+            {
+                GL.BindVertexArray(bgVAO[i]);
+                GL.BindBuffer(BufferTarget.ElementArrayBuffer, bgEBO[i]);
+                GL.ActiveTexture(TextureUnit.Texture0);
+                GL.BindTexture(TextureTarget.Texture2D, backgroundTextureID);
+                GL.UniformMatrix4(modelLoc, true, ref model);
+                GL.UniformMatrix4(viewLoc, true, ref view);
+                GL.UniformMatrix4(projLoc, true, ref projection);
+                GL.DrawElements(PrimitiveType.Triangles, 6, DrawElementsType.UnsignedInt, 0);
+            }
+        }
+
         protected override void OnLoad()
         {
             base.OnLoad();
             ring.RingLoad();
             floor.FloorLoad();
             ball.BallLoad();
+            borders.Load();
             shaderProgram.LoadShader();
+            LoadBackground();
 
 
             // Камера в исходной позиции
@@ -142,6 +232,14 @@ namespace OpenBasket
             ring.RingUnload();
             floor.FloorUnload();
             ball.BallUnload();
+            borders.Unload();
+            for (int i = 0; i < 4; i++)
+            {
+                GL.DeleteVertexArray(bgVAO[i]);
+                GL.DeleteBuffer(bgVBO[i]);
+                GL.DeleteBuffer(bgEBO[i]);
+            }
+            GL.DeleteTexture(backgroundTextureID);
             shaderProgram.DeleteShader();
 
 
@@ -149,11 +247,10 @@ namespace OpenBasket
         }
         protected override void OnRenderFrame(FrameEventArgs args)
         {
-            // Фон черный, как запрашивалось ранее
             GL.ClearColor(0.0f, 0.0f, 0.0f, 1.0f);
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-
             shaderProgram.UseShader();
+            DrawBackground();
 
             // --- ИЗМЕНЕНИЕ НАЧАЛО: Отрисовка колец ---
             // Вместо вызова RingDraw() вставляем его логику сюда и дублируем для второго кольца
@@ -166,8 +263,8 @@ namespace OpenBasket
             int ringprojectionLocation = GL.GetUniformLocation(shaderProgram.shaderHandle, "projection");
 
             // Получаем матрицы вида и проекции от камеры (одинаковы для всех объектов)
-            Matrix4 currentView = camera.GetViewMatrix();
-            Matrix4 currentProjection = camera.GetProjection();
+            Matrix4 currentView = camera != null ? camera.GetViewMatrix() : Matrix4.Identity;
+            Matrix4 currentProjection = camera != null ? camera.GetProjection() : Matrix4.Identity;
 
             // Устанавливаем view и projection матрицы в шейдер (один раз для обоих колец)
             GL.UniformMatrix4(ringviewLocation, true, ref currentView);
@@ -200,10 +297,37 @@ namespace OpenBasket
             // --- ИЗМЕНЕНИЕ КОНЕЦ ---
 
 
+            if (camera != null)
+            {
+                DrawBorders();
+            }
             DrawFloor(); // Отрисовка пола (без изменений)
             DrawBall(); // Отрисовка мяча (без изменений)
             Context.SwapBuffers();
             base.OnRenderFrame(args);
+        }
+        protected void DrawBorders()
+        {
+            if (camera == null) return;
+            borders.Bind();
+            // Матрицы
+            Matrix4 model = Matrix4.Identity;
+            Matrix4 view = camera.GetViewMatrix();
+            Matrix4 projection = camera.GetProjection();
+            int modelLoc = GL.GetUniformLocation(shaderProgram.shaderHandle, "model");
+            int viewLoc = GL.GetUniformLocation(shaderProgram.shaderHandle, "view");
+            int projLoc = GL.GetUniformLocation(shaderProgram.shaderHandle, "projection");
+            GL.UniformMatrix4(modelLoc, true, ref model);
+            GL.UniformMatrix4(viewLoc, true, ref view);
+            GL.UniformMatrix4(projLoc, true, ref projection);
+            // Отключаем текстуру, задаём ЧЁРНЫЙ цвет вручную
+            GL.BindTexture(TextureTarget.Texture2D, 0);
+            GL.UseProgram(shaderProgram.shaderHandle);
+            int colorLoc = GL.GetUniformLocation(shaderProgram.shaderHandle, "overrideColor");
+            if (colorLoc != -1)
+                GL.Uniform4(colorLoc, new Vector4(0.0f, 0.0f, 0.0f, 1.0f)); // Чёрный
+            GL.DrawElements(PrimitiveType.Triangles, borders.indices.Length, DrawElementsType.UnsignedInt, 0);
+            // УДАЛЕНО: сброс overrideColor
         }
         protected override void OnUpdateFrame(FrameEventArgs args)
         {
@@ -216,14 +340,18 @@ namespace OpenBasket
             KeyboardState input = KeyboardState;
 
             base.OnUpdateFrame(args);
-            camera.Update(input, mouse, args);
+            if (camera != null)
+            {
+                camera.Update(input, mouse, args);
+            }
 
 
             if (mouse.IsButtonDown(MouseButton.Left) && !isBallThrown)
             {
                 // Начальная позиция мяча берется из текущего положения "руки"
                 ballPosition = CalculateHandPosition(); // Обновляем позицию перед броском
-                ballVelocity = camera.Front * throwForce;
+                if (camera != null)
+                    ballVelocity = camera.Front * throwForce;
                 isBallThrown = true;
             }
 
@@ -274,7 +402,11 @@ namespace OpenBasket
 
         protected void DrawFloor()
         {
-            // Логика отрисовки пола осталась БЕЗ ИЗМЕНЕНИЙ
+            if (camera == null) return;
+            // Сбросить overrideColor перед полом
+            int colorLoc = GL.GetUniformLocation(shaderProgram.shaderHandle, "overrideColor");
+            if (colorLoc != -1)
+                GL.Uniform4(colorLoc, new Vector4(-1.0f));
             floor.FloorBind();
             Matrix4 floormodel = Matrix4.Identity;
             Matrix4 floorview = camera.GetViewMatrix();
@@ -302,6 +434,7 @@ namespace OpenBasket
         }
         private Vector3 CalculateHandPosition()
         {
+            if (camera == null) return Vector3.Zero;
             // Логика расчета позиции руки БЕЗ ИЗМЕНЕНИЙ
             return camera.position
                 + camera.Right * handOffset.X
@@ -310,20 +443,24 @@ namespace OpenBasket
         }
         protected void DrawBall()
         {
-            // Логика отрисовки мяча осталась БЕЗ ИЗМЕНЕНИЙ
+            if (camera == null) return;
+            // Сбросить overrideColor перед мячом
+            int colorLoc = GL.GetUniformLocation(shaderProgram.shaderHandle, "overrideColor");
+            if (colorLoc != -1)
+                GL.Uniform4(colorLoc, new Vector4(-1.0f));
             ball.BallBind();
 
-            // Используем текущую позицию мяча (обновляется в OnUpdateFrame)
-            Matrix4 model = Matrix4.CreateTranslation(ballPosition);
+            // Масштабирование мяча (радиус 0.5)
+            Matrix4 scale = Matrix4.CreateScale(0.5f); // Было 0.7, теперь 0.5
+            Matrix4 translation = Matrix4.CreateTranslation(ballPosition);
+            Matrix4 model = scale * translation;
 
             Matrix4 view = camera.GetViewMatrix();
             Matrix4 projection = camera.GetProjection();
 
-            // --- ИЗМЕНЕНИЕ: Получаем uniform location для мяча здесь ---
             int modelLoc = GL.GetUniformLocation(shaderProgram.shaderHandle, "model");
             int viewLoc = GL.GetUniformLocation(shaderProgram.shaderHandle, "view");
             int projLoc = GL.GetUniformLocation(shaderProgram.shaderHandle, "projection");
-            // --- КОНЕЦ ИЗМЕНЕНИЯ ---
 
             GL.UniformMatrix4(modelLoc, true, ref model);
             GL.UniformMatrix4(viewLoc, true, ref view);

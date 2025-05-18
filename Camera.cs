@@ -70,6 +70,7 @@ namespace OpenBasket
 
         public void InputController(KeyboardState input, MouseState mouse, FrameEventArgs e)
         {
+            Vector3 oldPosition = position;
             Vector3 horizontalFront = Vector3.Normalize(new Vector3(front.X, 0f, front.Z));
             Vector3 horizontalRight = Vector3.Normalize(new Vector3(right.X, 0f, right.Z));
 
@@ -89,6 +90,18 @@ namespace OpenBasket
             {
                 position += horizontalRight * SPEED * (float)e.Time;
             }
+
+            // --- Коллизия с бортиками ---
+            // Размеры бортиков из Borders.cs: x0 = -5, x1 = 5, z0 = -5, z1 = 5, высота y0 = -1, y1 = 0
+            // Камера может пройти только если Y > 0.95 (т.е. прыжок)
+            float borderX0 = -5f + 0.2f, borderX1 = 5f - 0.2f; // небольшой зазор, чтобы не застревать
+            float borderZ0 = -5f + 0.2f, borderZ1 = 5f - 0.2f;
+            float borderY = 0.95f; // высота "перепрыгивания"
+            if (position.X < borderX0 && position.Y < borderY) position.X = borderX0;
+            if (position.X > borderX1 && position.Y < borderY) position.X = borderX1;
+            if (position.Z < borderZ0 && position.Y < borderY) position.Z = borderZ0;
+            if (position.Z > borderZ1 && position.Y < borderY) position.Z = borderZ1;
+
             if (firstMove)
             {
                 lastPos = new Vector2(position.X, position.Y);
