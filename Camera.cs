@@ -91,12 +91,34 @@ namespace OpenBasket
                 position += horizontalRight * SPEED * (float)e.Time;
             }
 
+            // --- Перестроенная логика прыжка ---
+            const float maxJumpHeight = 10.0f; // Максимальная высота прыжка
+            const float jumpSpeed = 0.03f;    // Скорость подъема
+            const float fallSpeed = 0.03f;     // Скорость падения
+
+            if (input.IsKeyDown(Keys.Space) && position.Y <= 0.05f)
+            {
+                position.Y += jumpSpeed; // Начало прыжка
+            }
+            else if (position.Y > 0.0f)
+            {
+                if (position.Y < maxJumpHeight && input.IsKeyDown(Keys.Space))
+                {
+                    position.Y += jumpSpeed; // Продолжение подъема
+                }
+                else
+                {
+                    position.Y -= fallSpeed; // Плавное падение
+                }
+
+                if (position.Y < 0.0f) position.Y = 0.0f; // Ограничение снизу
+            }
+
             // --- Коллизия с бортиками ---
-            // Размеры бортиков из Borders.cs: x0 = -5, x1 = 5, z0 = -5, z1 = 5, высота y0 = -1, y1 = 0
-            // Камера может пройти только если Y > 0.95 (т.е. прыжок)
-            float borderX0 = -5f + 0.2f, borderX1 = 5f - 0.2f; // небольшой зазор, чтобы не застревать
+            float borderX0 = -5f + 0.2f, borderX1 = 5f - 0.2f;
             float borderZ0 = -5f + 0.2f, borderZ1 = 5f - 0.2f;
-            float borderY = 0.95f; // высота "перепрыгивания"
+            float borderY = 0.95f;
+
             if (position.X < borderX0 && position.Y < borderY) position.X = borderX0;
             if (position.X > borderX1 && position.Y < borderY) position.X = borderX1;
             if (position.Z < borderZ0 && position.Y < borderY) position.Z = borderZ0;
@@ -116,6 +138,7 @@ namespace OpenBasket
                 yaw += deltaX * SENSITIVITY * (float)e.Time;
                 pitch -= deltaY * SENSITIVITY * (float)e.Time;
             }
+
             UpdateVectors();
         }
         public void Update(KeyboardState input, MouseState mouse, FrameEventArgs e)

@@ -124,7 +124,7 @@ namespace OpenBasket
         void LoadBackground()
         {
             // Координаты для 4 сторон (большой размер)
-            float sizeX = 12f, sizeY = 8f, zFar = -9.9f, zNear = 9.9f, yBot = -2f, yTop = 6f, xLeft = -7f, xRight = 7f;
+            float zFar = -9.9f, zNear = 9.9f, yBot = -2f, yTop = 6f, xLeft = -7f, xRight = 7f;
             float[][] bgVertices = new float[4][];
             // Задняя (за кольцом z = zFar)
             bgVertices[0] = new float[] {
@@ -223,6 +223,43 @@ namespace OpenBasket
             CursorState = CursorState.Grabbed;
             GL.Enable(EnableCap.DepthTest);
 
+            // Настройка VAO, VBO и EBO для куба
+            teamVAO = GL.GenVertexArray();
+            teamVBO = GL.GenBuffer();
+            teamEBO = GL.GenBuffer();
+
+            GL.BindVertexArray(teamVAO);
+
+            GL.BindBuffer(BufferTarget.ArrayBuffer, teamVBO);
+            GL.BufferData(BufferTarget.ArrayBuffer, squareVertices.Length * sizeof(float), squareVertices, BufferUsageHint.StaticDraw);
+
+            GL.BindBuffer(BufferTarget.ElementArrayBuffer, teamEBO);
+            GL.BufferData(BufferTarget.ElementArrayBuffer, squareIndices.Length * sizeof(uint), squareIndices, BufferUsageHint.StaticDraw);
+
+            GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 5 * sizeof(float), 0);
+            GL.EnableVertexAttribArray(0);
+
+            GL.VertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, 5 * sizeof(float), 3 * sizeof(float));
+            GL.EnableVertexAttribArray(1);
+
+            GL.BindVertexArray(0);
+
+            // Загрузка текстуры команды
+            teamTextureID = GL.GenTexture();
+            GL.BindTexture(TextureTarget.Texture2D, teamTextureID);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+
+            StbImage.stbi_set_flip_vertically_on_load(1);
+            using (var stream = File.OpenRead("Texture/team.jpg"))
+            {
+                var image = ImageResult.FromStream(stream, ColorComponents.RedGreenBlueAlpha);
+                GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, image.Width, image.Height, 0, PixelFormat.Rgba, PixelType.UnsignedByte, image.Data);
+            }
+            GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
+            GL.BindTexture(TextureTarget.Texture2D, 0);
         }
 
 
@@ -271,9 +308,9 @@ namespace OpenBasket
             GL.UniformMatrix4(ringprojectionLocation, true, ref currentProjection);
 
             // --- Отрисовка ПЕРВОГО кольца ---
-            Matrix4 ringtranslation1 = Matrix4.CreateTranslation(0f, 2.5f, -5f); // Позиция первого кольца
+            Matrix4 ringtranslation1 = Matrix4.CreateTranslation(0f, 3.0f, -5f); // Увеличена высота первого кольца
             Matrix4 ringrotation = Matrix4.CreateRotationY(MathHelper.DegreesToRadians(90f));
-            Matrix4 ringscale = Matrix4.CreateScale(4f);
+            Matrix4 ringscale = Matrix4.CreateScale(2f); // Уменьшен размер кольца
             Matrix4 ringmodel1 = ringscale * ringtranslation1 * ringrotation; // Порядок важен
 
             // Передаем модель первого кольца и рисуем
@@ -284,7 +321,7 @@ namespace OpenBasket
 
 
             // --- Отрисовка ВТОРОГО кольца ---
-            Matrix4 ringtranslation2 = Matrix4.CreateTranslation(0f, 2.5f, 5f); // Позиция второго кольца (изменена только Z)
+            Matrix4 ringtranslation2 = Matrix4.CreateTranslation(0f, 3.0f, 5f); // Увеличена высота второго кольца
             // Используем те же scale и rotation
             Matrix4 ringmodel2 = ringscale * ringtranslation2 * ringrotation;
 
@@ -303,6 +340,44 @@ namespace OpenBasket
             }
             DrawFloor(); // Отрисовка пола (без изменений)
             DrawBall(); // Отрисовка мяча (без изменений)
+
+            // --- Отрисовка квадрата с текстурой команды ---
+            Matrix4 teamTranslation = Matrix4.CreateTranslation(-3.5f, 0.5f, -5.5f); // Перемещение квадрата правее
+            Matrix4 teamScale = Matrix4.CreateScale(3f); // Размер квадрата
+            Matrix4 teamModel = teamScale * teamTranslation;
+
+            GL.UniformMatrix4(modelLocation, true, ref teamModel);
+            GL.BindTexture(TextureTarget.Texture2D, teamTextureID); // Привязка текстуры команды
+            GL.BindVertexArray(teamVAO);
+            GL.DrawElements(PrimitiveType.Triangles, squareIndices.Length, DrawElementsType.UnsignedInt, 0);
+            GL.BindVertexArray(0);
+
+            // --- Отрисовка синего 3D-столбика слева от первого щита ---
+            Matrix4 poleTranslation1 = Matrix4.CreateTranslation(-5f, 1.5f, 0f); // Позиция первого столбика слева от поля
+            Matrix4 poleRotation1 = Matrix4.CreateRotationY(MathHelper.DegreesToRadians(90f)); // Поворот на 90 градусов
+            Matrix4 poleScale = Matrix4.CreateScale(0.2f, 3f, 0.2f); // Размер столбика
+            Matrix4 poleModel1 = poleScale * poleRotation1 * poleTranslation1;
+
+            GL.UniformMatrix4(modelLocation, true, ref poleModel1);
+            GL.BindTexture(TextureTarget.Texture2D, 0); // Без текстуры
+            GL.Uniform4(GL.GetUniformLocation(shaderProgram.shaderHandle, "overrideColor"), new Vector4(0.0f, 0.0f, 1.0f, 1.0f)); // Синий цвет
+            GL.BindVertexArray(teamVAO); // Используем VAO квадрата для столбика
+            GL.DrawElements(PrimitiveType.Triangles, squareIndices.Length, DrawElementsType.UnsignedInt, 0);
+            GL.BindVertexArray(0);
+
+            // --- Отрисовка синего 3D-столбика справа от второго щита ---
+            Matrix4 poleTranslation2 = Matrix4.CreateTranslation(5f, 1.5f, 0f); // Позиция второго столбика справа от поля
+            Matrix4 poleRotation2 = Matrix4.CreateRotationY(MathHelper.DegreesToRadians(90f)); // Поворот на 90 градусов
+            Matrix4 poleModel2 = poleScale * poleRotation2 * poleTranslation2;
+
+            GL.UniformMatrix4(modelLocation, true, ref poleModel2);
+            GL.BindTexture(TextureTarget.Texture2D, 0); // Без текстуры
+            GL.Uniform4(GL.GetUniformLocation(shaderProgram.shaderHandle, "overrideColor"), new Vector4(0.0f, 0.0f, 1.0f, 1.0f)); // Синий цвет
+            GL.BindVertexArray(teamVAO); // Используем VAO квадрата для столбика
+            GL.DrawElements(PrimitiveType.Triangles, squareIndices.Length, DrawElementsType.UnsignedInt, 0);
+            GL.BindVertexArray(0);
+
+
             Context.SwapBuffers();
             base.OnRenderFrame(args);
         }
@@ -331,7 +406,7 @@ namespace OpenBasket
         }
         protected override void OnUpdateFrame(FrameEventArgs args)
         {
-            // Логика обновления осталась ТОЧНО ТАКОЙ ЖЕ, как была в версии с черным фоном
+            // Логика обновления осталась ТОЧНОЙ ЖЕ, как была в версии с черным фоном
             if (KeyboardState.IsKeyDown(Keys.Escape))
             {
                 Close();
@@ -391,14 +466,6 @@ namespace OpenBasket
             this.height = e.Height;
             // Логика камеры при ресайзе, если она есть, должна быть здесь (в оригинале не было)
         }
-
-        // Оригинальный метод RingDraw() больше не используется, т.к. его логика встроена в OnRenderFrame
-        /*
-        protected void RingDraw()
-        {
-            // Этот метод больше не нужен
-        }
-        */
 
         protected void DrawFloor()
         {
@@ -470,5 +537,22 @@ namespace OpenBasket
                 ball.ballindices.Length,
                 DrawElementsType.UnsignedInt, 0);
         }
+
+        private int teamTextureID; // Идентификатор текстуры команды
+        private uint[] squareIndices =
+        {
+            0, 1, 2,
+            2, 3, 0
+        };
+
+        private int teamVAO, teamVBO, teamEBO; // Буферы для квадрата
+        private float[] squareVertices =
+        {
+            // Позиции          // Текстурные координаты
+            -0.5f, -0.5f, 0.0f,  0.0f, 0.0f,
+             0.5f, -0.5f, 0.0f,  1.0f, 0.0f,
+             0.5f,  0.5f, 0.0f,  1.0f, 1.0f,
+            -0.5f,  0.5f, 0.0f,  0.0f, 1.0f
+        };
     }
 }
