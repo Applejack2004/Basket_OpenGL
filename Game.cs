@@ -361,7 +361,7 @@ namespace OpenBasket
             GL.UniformMatrix4(modelLocation, true, ref poleModel1);
             GL.BindTexture(TextureTarget.Texture2D, 0); // Без текстуры
             GL.Uniform4(GL.GetUniformLocation(shaderProgram.shaderHandle, "overrideColor"), new Vector4(0.0f, 0.0f, 1.0f, 1.0f)); // Синий цвет
-            GL.BindVertexArray(teamVAO); // Используем VAO квадрата для столбика
+            GL.BindVertexArray(teamVAO); // Используем VAО квадрата для столбика
             GL.DrawElements(PrimitiveType.Triangles, squareIndices.Length, DrawElementsType.UnsignedInt, 0);
             GL.BindVertexArray(0);
 
@@ -373,7 +373,7 @@ namespace OpenBasket
             GL.UniformMatrix4(modelLocation, true, ref poleModel2);
             GL.BindTexture(TextureTarget.Texture2D, 0); // Без текстуры
             GL.Uniform4(GL.GetUniformLocation(shaderProgram.shaderHandle, "overrideColor"), new Vector4(0.0f, 0.0f, 1.0f, 1.0f)); // Синий цвет
-            GL.BindVertexArray(teamVAO); // Используем VAO квадрата для столбика
+            GL.BindVertexArray(teamVAO); // Используем VAО квадрата для столбика
             GL.DrawElements(PrimitiveType.Triangles, squareIndices.Length, DrawElementsType.UnsignedInt, 0);
             GL.BindVertexArray(0);
 
@@ -457,6 +457,7 @@ namespace OpenBasket
                 ballPosition = CalculateHandPosition();
             }
 
+            CheckBallCollisionWithRing(); // Проверка столкновения мяча с кольцом
         }
         protected override void OnResize(ResizeEventArgs e)
         {
@@ -498,6 +499,11 @@ namespace OpenBasket
             GL.DrawElements(PrimitiveType.Triangles,
                            floor.floorIndices.Length,
                            DrawElementsType.UnsignedInt, 0);
+
+            // Установка бежевого цвета для пола
+            int floorColorLoc = GL.GetUniformLocation(shaderProgram.shaderHandle, "overrideColor");
+            if (floorColorLoc != -1)
+                GL.Uniform4(floorColorLoc, new Vector4(0.96f, 0.87f, 0.70f, 1.0f)); // Бежевый цвет
         }
         private Vector3 CalculateHandPosition()
         {
@@ -554,5 +560,36 @@ namespace OpenBasket
              0.5f,  0.5f, 0.0f,  1.0f, 1.0f,
             -0.5f,  0.5f, 0.0f,  0.0f, 1.0f
         };
+
+        private void CheckBallCollisionWithRing()
+        {
+            // Проверка на попадание мяча в прямоугольник с текстурой кольца
+            if (IsBallInRingBounds()) // Реализуйте метод IsBallInRingBounds для проверки попадания
+            {
+                //score += 3; // Добавляем 3 очка
+            }
+        }
+
+        private bool IsBallInRingBounds()
+        {
+            // Логика проверки попадания мяча в прямоугольник с текстурой кольца
+            Vector3 ringPosition = new Vector3(0f, 3.0f, -5f); // Позиция кольца (пример для первого кольца)
+            Vector3 ringSize = new Vector3(2.0f, 1.0f, 0.1f); // Размер прямоугольника кольца
+
+            // Проверяем, находится ли мяч внутри границ прямоугольника
+            return ballPosition.X >= ringPosition.X - ringSize.X / 2 &&
+                   ballPosition.X <= ringPosition.X + ringSize.X / 2 &&
+                   ballPosition.Y >= ringPosition.Y - ringSize.Y / 2 &&
+                   ballPosition.Y <= ringPosition.Y + ringSize.Y / 2 &&
+                   ballPosition.Z >= ringPosition.Z - ringSize.Z / 2 &&
+                   ballPosition.Z <= ringPosition.Z + ringSize.Z / 2;
+        }
+
+        private void DrawText(string text, Vector2 position, Vector3 color)
+        {
+            // Заглушка для рендеринга текста
+            // Здесь можно использовать библиотеку для работы с текстом, например, FreeType или заранее подготовленные текстуры символов
+            Console.WriteLine($"Rendering text: {text} at position {position} with color {color}");
+        }
     }
 }
